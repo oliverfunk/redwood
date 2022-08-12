@@ -45,13 +45,4 @@ impl FtxWSTag {
             FtxWSTag::FillUpdates => "fill_update",
         }
     }
-
-    fn from_str(tag: &str) -> Self {
-        match tag {
-            "orderbook_update" => FtxWSTag::OrderbookUpdates,
-            "order_update" => FtxWSTag::OrderUpdates,
-            "fill_update" => FtxWSTag::FillUpdates,
-            _ => panic!("Unknown tag: {}", tag),
-        }
-    }
 }

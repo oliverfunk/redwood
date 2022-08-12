@@ -16,6 +16,14 @@ pub struct WSMessage {
 
 #[derive(Message)]
 #[rtype(result = "()")]
+pub struct WSStop {}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct OnStrategyStart {}
+
+#[derive(Message)]
+#[rtype(result = "()")]
 pub struct OnStrategyLoop {}
 
 #[derive(Message)]

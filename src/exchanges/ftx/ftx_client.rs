@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::FtxApiDetails;
 
 use super::ftx_rest_connector::FtxRestConnector;
@@ -30,8 +32,17 @@ impl FtxClient {
         self
     }
 
-    pub fn get_markets(&self) -> Result<Value, reqwest::Error> {
-        todo!()
-        // self.rest_connector.get_markets()
+    pub async fn get_orders(&self, market: &str) -> Value {
+        self.rest_connector
+            .get("/orders", Some(&mut [("market", market)]))
+            .await
+            .expect("failed to get orders for market: {market}")
+    }
+
+    pub async fn get_markets(&self) -> Value {
+        self.rest_connector
+            .get("/markets", None)
+            .await
+            .expect("failed to get markets")
     }
 }

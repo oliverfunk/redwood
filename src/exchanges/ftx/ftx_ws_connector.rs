@@ -16,6 +16,7 @@ use tokio_tungstenite::{
 };
 
 use crate::messages::{WSMessage, WSStarted};
+use crate::WSStop;
 
 use super::{ftx_ws_client::FtxWSClient, FtxApiDetails};
 use super::{FtxWSTag, HmacSha256};
@@ -42,8 +43,10 @@ impl FtxWSConnector {
         client_addr: Addr<FtxWSClient>,
     ) -> Addr<Self> {
         let (tx, rx) = sync_channel(1);
-        Arbiter::new().spawn(async move {
-            FtxWSConnector::create(|ctx| {
+        let arbiter = Arbiter::new();
+        let arbiter_handle = arbiter.handle().clone();
+        arbiter.spawn(async move {
+            Supervisor::start_in_arbiter(&arbiter_handle, move |ctx| {
                 tx.send(ctx.address().clone()).unwrap();
                 FtxWSConnector {
                     tag,
@@ -87,9 +90,8 @@ impl FtxWSConnector {
                 .unwrap()
                 .as_millis();
 
-            let mut mac = HmacSha256::new_from_slice(api_details.api_secret.as_bytes())
-                .expect("HMAC can take key of any size");
-            mac.update(format!("{}websocket_login", now_in_millis).as_bytes());
+            let mut mac = HmacSha256::new_from_slice(api_details.api_secret.as_bytes()).unwrap();
+            mac.update(format!("{now_in_millis}websocket_login").as_bytes());
             let signature = mac.finalize().into_bytes().encode_hex::<String>();
 
             Message::Text(
@@ -121,6 +123,8 @@ impl Actor for FtxWSConnector {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        println!("FtxWSConnector {} starting", self.tag.as_str());
+
         FtxWSConnector::create_websocket()
             .into_actor(self)
             .map(|result, actor, ctx| {
@@ -177,10 +181,17 @@ impl Actor for FtxWSConnector {
 }
 
 impl Supervised for FtxWSConnector {
-    fn restarting(&mut self, _ctx: &mut <Self as Actor>::Context) {
+    fn restarting(&mut self, _ctx: &mut Self::Context) {
         println!("FtxWSConnector restarting");
+    }
+}
 
-        // todo!("need to recreate websocket connection");
+impl Handler<WSStop> for FtxWSConnector {
+    type Result = ();
+
+    fn handle(&mut self, _: WSStop, ctx: &mut Self::Context) {
+        println!("stopping");
+        ctx.stop();
     }
 }
 

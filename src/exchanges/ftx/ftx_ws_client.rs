@@ -1,6 +1,6 @@
-use crate::{messages::*, Strategy};
+use crate::messages::*;
 use actix::prelude::*;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::sync::mpsc::sync_channel;
 
 use super::{ftx_ws_connector::FtxWSConnector, strat::Strat, FtxApiDetails, FtxWSTag};
