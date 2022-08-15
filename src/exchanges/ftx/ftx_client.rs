@@ -1,11 +1,10 @@
-use std::collections::HashMap;
-
 use super::FtxApiDetails;
 
 use super::ftx_rest_connector::FtxRestConnector;
+use super::ftx_value_objects::FtxPostOrderValue;
 use super::{ftx_ws_client::FtxWSClient, strat::Strat};
 use actix::Addr;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub struct FtxClient {
     rest_connector: FtxRestConnector,
@@ -34,15 +33,29 @@ impl FtxClient {
 
     pub async fn get_orders(&self, market: &str) -> Value {
         self.rest_connector
-            .get("/orders", Some(&mut [("market", market)]))
+            .get("orders", Some(&mut [("market", market)]))
             .await
             .expect("failed to get orders for market: {market}")
     }
 
     pub async fn get_markets(&self) -> Value {
         self.rest_connector
-            .get("/markets", None)
+            .get("markets", None)
             .await
             .expect("failed to get markets")
+    }
+
+    pub async fn post_order(&self, values: FtxPostOrderValue) -> Value {
+        self.rest_connector
+            .post("orders", None, Some(json!(values)))
+            .await
+            .expect("failed to post order")
+    }
+
+    pub async fn cancel_order(&self, order_id: u64) -> Value {
+        self.rest_connector
+            .delete(format!("orders/{order_id}").as_str(), None)
+            .await
+            .expect("failed to cancel order")
     }
 }

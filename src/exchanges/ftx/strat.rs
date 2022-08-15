@@ -1,7 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    OnFillUpdate, OnOrderUpdate, OnOrderbookUpdate, OnStrategyLoop, OnStrategyStart, Strategy,
+    exchanges::ftx::ftx_value_objects::FtxPostOrderValue, OnFillUpdate, OnOrderUpdate,
+    OnOrderbookUpdate, OnStrategyLoop, OnStrategyStart, Strategy,
 };
 
 use super::{FtxApiDetails, FtxClient};
@@ -22,11 +23,11 @@ impl Strategy for Strat {
         ));
         Strat {
             loop_period: Duration::from_millis(5000),
-            ftx_client: Arc::new(FtxClient::new(api_details.clone())), // .with_events(
-            //     Some(vec!["BTC-PERP", "BTC/USD"]),
-            //     api_details.clone(),
-            //     ctx.address().clone(),
-            // )
+            ftx_client: Arc::new(FtxClient::new(api_details.clone()).with_events(
+                Some(vec!["BTC-PERP", "BTC/USD"]),
+                api_details.clone(),
+                ctx.address().clone(),
+            )),
             some_state: "state_beg".to_string(),
         }
     }
@@ -51,13 +52,34 @@ impl Handler<OnStrategyStart> for Strat {
         println!("strat start");
 
         let ftx_client = self.ftx_client.clone();
-        async move { ftx_client.get_orders("BTC-PERP").await }
-            .into_actor(self)
-            .map(|res, act, ctx| {
-                act.some_state = "get rekt".to_string();
-                println!("{res}");
-            })
-            .spawn(ctx);
+        async move {
+            let po = ftx_client
+                .post_order(FtxPostOrderValue {
+                    market: "BTC-PERP".to_string(),
+                    side: "buy".to_string(),
+                    price: 23000.0,
+                    order_type: "limit".to_string(),
+                    size: 0.01,
+                    reduce_only: None,
+                    ioc: None,
+                    post_only: Some(true),
+                    client_id: None,
+                    reject_on_price_band: None,
+                    reject_after_ts: None,
+                })
+                .await;
+
+            let order_id = po["id"].as_u64().unwrap();
+            let co = ftx_client.cancel_order(order_id).await;
+
+            println!("{:?}", co);
+        }
+        .into_actor(self)
+        .map(|res, act, ctx| {
+            println!("here");
+            act.some_state = "get rekt".to_string();
+        })
+        .spawn(ctx);
     }
 }
 
@@ -73,7 +95,7 @@ impl Handler<OnOrderbookUpdate> for Strat {
     type Result = ();
 
     fn handle(&mut self, msg: OnOrderbookUpdate, ctx: &mut Self::Context) -> Self::Result {
-        println!("ob update: {:?}", msg.message);
+        // println!("ob update: {:?}", msg.message);
     }
 }
 

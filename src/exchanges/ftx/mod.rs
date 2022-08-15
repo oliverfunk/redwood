@@ -1,5 +1,6 @@
 mod ftx_client;
 mod ftx_rest_connector;
+mod ftx_value_objects;
 mod ftx_ws_client;
 mod ftx_ws_connector;
 mod strat;

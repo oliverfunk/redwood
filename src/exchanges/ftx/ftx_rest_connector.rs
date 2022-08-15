@@ -1,10 +1,10 @@
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 use hex::ToHex;
 use hmac::Mac;
 use reqwest::{header::HeaderMap, Client, Url};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use super::{FtxApiDetails, HmacSha256};
 
@@ -36,7 +36,7 @@ impl FtxRestConnector {
         query_params: Option<&mut [(&str, &str)]>,
     ) -> Result<Value, String> {
         let api_url = self.build_api_url(api_path, query_params);
-        let full_path = self.get_full_path(&api_url);
+        let full_path = self.get_full_path(&api_url, &None);
 
         match self
             .client
@@ -59,29 +59,86 @@ impl FtxRestConnector {
         }
     }
 
-    pub fn post() {
-        unimplemented!()
+    pub async fn post(
+        &self,
+        api_path: &str,
+        query_params: Option<&mut [(&str, &str)]>,
+        req_params: Option<Value>,
+    ) -> Result<Value, String> {
+        let api_url = self.build_api_url(api_path, query_params);
+        let full_path = self.get_full_path(&api_url, &req_params);
+        let json_body = req_params.unwrap_or(json!({}));
+
+        match self
+            .client
+            .post(api_url)
+            .json(&json_body)
+            .headers(self.auth_header("POST", full_path.as_str()))
+            .send()
+            .await
+        {
+            Ok(res) => {
+                match res
+                    .json::<FtxApiResponse>()
+                    .await
+                    .expect("Failed to parse json")
+                {
+                    FtxApiResponse::Result { success: _, result } => Ok(result),
+                    FtxApiResponse::Error { success: _, error } => Err(error.to_string()),
+                }
+            }
+            Err(e) => Err(format!("Failed to make request: {e}").to_string()),
+        }
     }
 
-    pub fn delete() {
-        unimplemented!()
+    pub async fn delete(
+        &self,
+        api_path: &str,
+        query_params: Option<&mut [(&str, &str)]>,
+    ) -> Result<Value, String> {
+        let api_url = self.build_api_url(api_path, query_params);
+        let full_path = self.get_full_path(&api_url, &None);
+
+        match self
+            .client
+            .delete(api_url)
+            .headers(self.auth_header("DELETE", full_path.as_str()))
+            .send()
+            .await
+        {
+            Ok(res) => {
+                match res
+                    .json::<FtxApiResponse>()
+                    .await
+                    .expect("Failed to parse json")
+                {
+                    FtxApiResponse::Result { success: _, result } => Ok(result),
+                    FtxApiResponse::Error { success: _, error } => Err(error.to_string()),
+                }
+            }
+            Err(e) => Err(format!("Failed to make request: {e}").to_string()),
+        }
     }
 
     fn build_api_url(&self, api_path: &str, query_params: Option<&mut [(&str, &str)]>) -> Url {
         match query_params {
             Some(qps) => {
-                Url::parse_with_params(format!("{FTX_REST_ENDPOINT}{api_path}").as_str(), qps)
+                Url::parse_with_params(format!("{FTX_REST_ENDPOINT}/{api_path}").as_str(), qps)
             }
-            None => Url::parse(format!("{FTX_REST_ENDPOINT}{api_path}").as_str()),
+            None => Url::parse(format!("{FTX_REST_ENDPOINT}/{api_path}").as_str()),
         }
         .expect("couldn't parse url")
     }
 
-    fn get_full_path(&self, api_url: &Url) -> String {
-        match api_url.query() {
+    fn get_full_path(&self, api_url: &Url, req_params: &Option<Value>) -> String {
+        let mut full_path = match api_url.query() {
             Some(qps_str) => format!("{}?{}", api_url.path(), qps_str),
             None => api_url.path().to_string(),
+        };
+        if let Some(req_params) = req_params {
+            full_path.push_str(req_params.to_string().as_str());
         }
+        full_path
     }
 
     fn auth_header(&self, req_method: &str, full_req_path: &str) -> HeaderMap {
