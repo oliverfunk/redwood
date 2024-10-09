@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use quantm_trade::{exchanges::ftx::Strat, Strategy};
+use redwood::{exchanges::binance::Strat, Strategy};
 
 fn main() {
     let sys = System::new();
